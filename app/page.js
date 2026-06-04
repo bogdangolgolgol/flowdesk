@@ -67,8 +67,12 @@ export default function Home() {
       .select('*, projects(name)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-    if (!error && data && data.length > 0) {
-      setTasks(data.map(t => ({ ...t, project_name: t.projects?.name || 'Personal' })))
+    if (!error) {
+      if (data && data.length > 0) {
+        setTasks(data.map(t => ({ ...t, project_name: t.projects?.name || 'Personal' })))
+      } else {
+        setTasks([]) // ulogovan ali nema zadataka — prazna lista
+      }
     }
   }
 
