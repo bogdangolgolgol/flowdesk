@@ -164,7 +164,7 @@ export default function Home() {
 
   if (authLoading) return (
     <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)',fontFamily:'DM Sans,sans-serif',color:'var(--text3)'}}>
-      <div>Loading FlowDesk...</div>
+      <div>Loading FlowTime...</div>
     </div>
   )
 
@@ -192,7 +192,7 @@ export default function Home() {
         <div className={styles.logoArea}>
           <div className={styles.logo}>
             <div className={styles.logoIcon}>⚡</div>
-            FlowDesk
+            FlowTime
           </div>
           <button className={styles.themeToggle} onClick={toggleTheme}>
             {theme === 'light' ? '🌙' : '☀️'}

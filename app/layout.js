@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'FlowDesk – AI Planner for Freelancers',
-  description: 'AI-powered time planner and task manager for freelancers',
+  title: 'FlowTime – AI Planner for Freelancers',
+  description: 'FlowTime – AI-powered time planner for freelancers. Track time, manage tasks, meet deadlines.',
 }
 
 export default function RootLayout({ children }) {

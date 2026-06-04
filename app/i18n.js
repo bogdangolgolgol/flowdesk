@@ -1,6 +1,6 @@
 export const translations = {
   en: {
-    appName: 'FlowDesk',
+    appName: "FlowTime",
     overview: 'Overview',
     dashboard: 'Dashboard',
     tasks: 'Tasks',
@@ -74,7 +74,7 @@ export const translations = {
     noTasks: 'No tasks here!',
   },
   sr: {
-    appName: 'FlowDesk',
+    appName: "FlowTime",
     overview: 'Pregled',
     dashboard: 'Kontrolna tabla',
     tasks: 'Zadaci',
@@ -148,7 +148,7 @@ export const translations = {
     noTasks: 'Nema zadataka!',
   },
   de: {
-    appName: 'FlowDesk',
+    appName: "FlowTime",
     overview: 'Übersicht',
     dashboard: 'Dashboard',
     tasks: 'Aufgaben',

@@ -35,7 +35,7 @@ export default function Login() {
       <div style={{background:'#fff',border:'1px solid rgba(0,0,0,0.08)',borderRadius:'18px',padding:'36px',width:'400px',maxWidth:'92vw',boxShadow:'0 4px 24px rgba(0,0,0,0.08)'}}>
         <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'28px'}}>
           <div style={{width:'32px',height:'32px',background:'#6c5ce7',borderRadius:'9px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'16px'}}>⚡</div>
-          <div style={{fontSize:'20px',fontWeight:'700',color:'#111118'}}>FlowDesk</div>
+          <div style={{fontSize:'20px',fontWeight:'700',color:'#111118'}}>FlowTime</div>
         </div>
         <div style={{fontSize:'22px',fontWeight:'700',color:'#111118',marginBottom:'6px'}}>{isSignup?'Create account':'Welcome back'}</div>
         <div style={{fontSize:'13px',color:'#9090a8',marginBottom:'24px'}}>{isSignup?'Start your 7-day free trial':'Sign in to your account'}</div>
