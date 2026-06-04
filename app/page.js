@@ -2,20 +2,23 @@
 import { useState, useEffect, useRef } from 'react'
 import styles from './page.module.css'
 import { translations } from './i18n'
+import { supabase } from './lib/supabase'
 
-const INITIAL_TASKS = [
-  { id:1, name:'Review brand guidelines', project:'Acme Corp', category:'Design', priority:'high', duration:'45m', done:true },
-  { id:2, name:'Client call prep', project:'TechStartup', category:'Sales', priority:'med', duration:'30m', done:true },
-  { id:3, name:'Update project docs', project:'Internal', category:'Admin', priority:'low', duration:'20m', done:true },
-  { id:4, name:'Homepage redesign', project:'Acme Corp', category:'Dev', priority:'high', duration:'3h', done:false },
-  { id:5, name:'Write weekly report', project:'Internal', category:'Admin', priority:'low', duration:'1h', done:false },
-  { id:6, name:'Fix payment bug', project:'SaaS Client', category:'Dev', priority:'high', duration:'2h', done:false },
-  { id:7, name:'Design logo variants', project:'TechStartup', category:'Design', priority:'med', duration:'2.5h', done:false },
+const DEMO_TASKS = [
+  { id:1, name:'Review brand guidelines', project_name:'Acme Corp', category:'Design', priority:'high', duration:'45m', done:true },
+  { id:2, name:'Client call prep', project_name:'TechStartup', category:'Sales', priority:'med', duration:'30m', done:true },
+  { id:3, name:'Update project docs', project_name:'Internal', category:'Admin', priority:'low', duration:'20m', done:true },
+  { id:4, name:'Homepage redesign', project_name:'Acme Corp', category:'Dev', priority:'high', duration:'3h', done:false },
+  { id:5, name:'Write weekly report', project_name:'Internal', category:'Admin', priority:'low', duration:'1h', done:false },
+  { id:6, name:'Fix payment bug', project_name:'SaaS Client', category:'Dev', priority:'high', duration:'2h', done:false },
+  { id:7, name:'Design logo variants', project_name:'TechStartup', category:'Design', priority:'med', duration:'2.5h', done:false },
 ]
 
 export default function Home() {
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [view, setView] = useState('dashboard')
-  const [tasks, setTasks] = useState(INITIAL_TASKS)
+  const [tasks, setTasks] = useState(DEMO_TASKS)
   const [taskFilter, setTaskFilter] = useState('all')
   const [timerSec, setTimerSec] = useState(0)
   const [timerRunning, setTimerRunning] = useState(false)
@@ -43,7 +46,31 @@ export default function Home() {
     document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : '')
     const savedLang = localStorage.getItem('fd-lang') || 'en'
     setLang(savedLang)
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setAuthLoading(false)
+      if (session?.user) loadTasks(session.user.id)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) loadTasks(session.user.id)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
+
+  const loadTasks = async (userId) => {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*, projects(name)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+    if (!error && data && data.length > 0) {
+      setTasks(data.map(t => ({ ...t, project_name: t.projects?.name || 'Personal' })))
+    }
+  }
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light'
@@ -52,10 +79,7 @@ export default function Home() {
     localStorage.setItem('fd-theme', next)
   }
 
-  const changeLang = (l) => {
-    setLang(l)
-    localStorage.setItem('fd-lang', l)
-  }
+  const changeLang = (l) => { setLang(l); localStorage.setItem('fd-lang', l) }
 
   const fmt = (s) => {
     const h = String(Math.floor(s/3600)).padStart(2,'0')
@@ -76,7 +100,15 @@ export default function Home() {
     return () => clearInterval(trackerRef.current)
   }, [trackerRunning])
 
-  const toggleTask = (id) => setTasks(ts => ts.map(t => t.id===id ? {...t, done:!t.done} : t))
+  const toggleTask = async (id) => {
+    const task = tasks.find(t => t.id === id)
+    const newDone = !task.done
+    setTasks(ts => ts.map(t => t.id===id ? {...t, done:newDone} : t))
+    if (user) {
+      await supabase.from('tasks').update({ done: newDone }).eq('id', id)
+    }
+  }
+
   const pendingCount = tasks.filter(t => !t.done).length
   const doneCount = tasks.filter(t => t.done).length
   const filteredTasks = tasks.filter(t => taskFilter==='todo' ? !t.done : taskFilter==='done' ? t.done : true)
@@ -107,11 +139,30 @@ export default function Home() {
     setAiLoading(false)
   }
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTaskName.trim()) return
-    setTasks(ts => [...ts, { id:Date.now(), name:newTaskName, project:newTaskProject, category:'General', priority:newTaskPriority, duration:newTaskDuration||'1h', done:false }])
+    const newTask = { id:Date.now(), name:newTaskName, project_name:newTaskProject, category:'General', priority:newTaskPriority, duration:newTaskDuration||'1h', done:false }
+    setTasks(ts => [...ts, newTask])
+    if (user) {
+      await supabase.from('tasks').insert({
+        user_id: user.id, name: newTaskName, priority: newTaskPriority, duration: newTaskDuration||'1h', done: false
+      })
+      loadTasks(user.id)
+    }
     setNewTaskName(''); setNewTaskDuration(''); setShowNewTask(false)
   }
+
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setTasks(DEMO_TASKS)
+  }
+
+  if (authLoading) return (
+    <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)',fontFamily:'DM Sans,sans-serif',color:'var(--text3)'}}>
+      <div>Loading FlowDesk...</div>
+    </div>
+  )
 
   const navItems = [
     { id:'dashboard', icon:'⊡', label:t.dashboard },
@@ -123,7 +174,7 @@ export default function Home() {
   ]
 
   const pageTitles = {
-    dashboard: [t.dashboard, `Friday, May 29 · ${t.greet}, Bogdan 👋`],
+    dashboard: [t.dashboard, `${t.greet}, ${user?.email?.split('@')[0] || 'Bogdan'} 👋`],
     tasks: [t.tasks, ''],
     'ai-plan': [t.aiDayPlan, ''],
     tracker: [t.timeTracker, ''],
@@ -133,14 +184,13 @@ export default function Home() {
 
   return (
     <div className={styles.app}>
-      {/* SIDEBAR */}
       <nav className={styles.sidebar}>
         <div className={styles.logoArea}>
           <div className={styles.logo}>
             <div className={styles.logoIcon}>⚡</div>
             FlowDesk
           </div>
-          <button className={styles.themeToggle} onClick={toggleTheme} title="Toggle theme">
+          <button className={styles.themeToggle} onClick={toggleTheme}>
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
         </div>
@@ -172,16 +222,25 @@ export default function Home() {
             ))}
           </div>
           <div className={styles.userArea}>
-            <div className={styles.avatar}>B</div>
-            <div>
-              <div className={styles.userName}>Bogdan</div>
+            <div className={styles.avatar}>{user ? user.email[0].toUpperCase() : 'B'}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div className={styles.userName} style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                {user ? user.email.split('@')[0] : 'Bogdan'}
+              </div>
               <div className={styles.userPlan}>{t.freePlan}</div>
             </div>
+            {user && (
+              <button onClick={signOut} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text3)',fontSize:'16px',flexShrink:0}} title="Sign out">↩</button>
+            )}
           </div>
+          {!user && (
+            <a href="/login" style={{display:'block',marginTop:'10px',textAlign:'center',padding:'8px',background:'var(--accent)',color:'#fff',borderRadius:'9px',fontSize:'13px',fontWeight:'600',textDecoration:'none'}}>
+              Sign in / Sign up
+            </a>
+          )}
         </div>
       </nav>
 
-      {/* MAIN */}
       <main className={styles.main}>
         <div className={styles.topbar}>
           <div>
@@ -196,7 +255,6 @@ export default function Home() {
 
         <div className={styles.content}>
 
-          {/* DASHBOARD */}
           {view === 'dashboard' && (
             <>
               <div className={styles.metrics}>
@@ -224,7 +282,7 @@ export default function Home() {
                       <div className={`${styles.taskCheck} ${task.done ? styles.done : ''}`}>{task.done && '✓'}</div>
                       <div className={styles.taskInfo}>
                         <div className={`${styles.taskName} ${task.done ? styles.striked : ''}`}>{task.name}</div>
-                        <div className={styles.taskMeta}>{task.project} · {task.category}</div>
+                        <div className={styles.taskMeta}>{task.project_name} · {task.category}</div>
                       </div>
                       <div className={`${styles.priorityDot} ${styles['p_'+task.priority]}`}></div>
                       <div className={styles.timeBadge}>{task.duration}</div>
@@ -275,7 +333,6 @@ export default function Home() {
             </>
           )}
 
-          {/* TASKS */}
           {view === 'tasks' && (
             <>
               <div className={styles.tabs}>
@@ -289,7 +346,7 @@ export default function Home() {
                     <div className={`${styles.taskCheck} ${task.done ? styles.done : ''}`}>{task.done && '✓'}</div>
                     <div className={styles.taskInfo}>
                       <div className={`${styles.taskName} ${task.done ? styles.striked : ''}`}>{task.name}</div>
-                      <div className={styles.taskMeta}>{task.project} · {task.category} · {task.duration}</div>
+                      <div className={styles.taskMeta}>{task.project_name} · {task.category} · {task.duration}</div>
                     </div>
                     <div className={`${styles.priorityDot} ${styles['p_'+task.priority]}`}></div>
                     <div className={styles.timeBadge}>{task.duration}</div>
@@ -305,7 +362,6 @@ export default function Home() {
             </>
           )}
 
-          {/* AI PLAN */}
           {view === 'ai-plan' && (
             <>
               <div className={styles.card} style={{marginBottom:'16px'}}>
@@ -339,7 +395,6 @@ export default function Home() {
             </>
           )}
 
-          {/* TRACKER */}
           {view === 'tracker' && (
             <>
               <div className={styles.grid2} style={{marginBottom:'16px'}}>
@@ -352,20 +407,13 @@ export default function Home() {
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.formLabel}>{t.project}</label>
-                    <select className={styles.formInput}>
-                      <option>Acme Corp – Homepage</option>
-                      <option>TechStartup – Logo</option>
-                      <option>SaaS Client – Bug Fix</option>
-                      <option>Internal</option>
-                    </select>
+                    <select className={styles.formInput}><option>Acme Corp</option><option>SaaS Client</option><option>TechStartup</option></select>
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.formLabel}>{t.whatWorking}</label>
                     <input className={styles.formInput} type="text" placeholder={t.whatWorking} />
                   </div>
-                  <div className={styles.timerDisplay}>
-                    <div className={styles.timerTime}>{fmt(trackerSec)}</div>
-                  </div>
+                  <div className={styles.timerDisplay}><div className={styles.timerTime}>{fmt(trackerSec)}</div></div>
                   <div className={styles.timerControls}>
                     <button className={styles.btnCircle} onClick={() => { setTrackerRunning(false); setTrackerSec(0); }}>↺</button>
                     <button className={`${styles.btnCircle} ${styles.play} ${trackerRunning ? styles.timerActive : ''}`} onClick={() => setTrackerRunning(r => !r)}>
@@ -375,10 +423,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div className={styles.card}>
-                  <div className={styles.cardHeader}>
-                    <div className={styles.cardTitle}>{t.timeByProject}</div>
-                    <div className={styles.cardAction}>{t.thisWeek}</div>
-                  </div>
+                  <div className={styles.cardHeader}><div className={styles.cardTitle}>{t.timeByProject}</div></div>
                   {[
                     { name:'Acme Corp', hrs:'12.5h', pct:78, color:'var(--accent)' },
                     { name:'SaaS Client', hrs:'8.0h', pct:50, color:'var(--blue)' },
@@ -415,7 +460,6 @@ export default function Home() {
             </>
           )}
 
-          {/* PROJECTS */}
           {view === 'projects' && (
             <div className={styles.grid2}>
               {[
@@ -438,8 +482,7 @@ export default function Home() {
                     <div className={styles.barTrack}><div className={styles.barFill} style={{width:`${p.pct}%`,background:p.color}}></div></div>
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between',marginTop:'12px',fontSize:'12px',color:'var(--text3)'}}>
-                    <span>⏱ {p.hrs} {t.logged}</span>
-                    <span>📅 {p.deadline}</span>
+                    <span>⏱ {p.hrs} {t.logged}</span><span>📅 {p.deadline}</span>
                   </div>
                 </div>
               ))}
@@ -452,7 +495,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* DEADLINES */}
           {view === 'deadlines' && (
             <div className={styles.card}>
               <div className={styles.cardHeader}>
@@ -480,7 +522,6 @@ export default function Home() {
         </div>
       </main>
 
-      {/* NEW TASK MODAL */}
       {showNewTask && (
         <div className={styles.modalOverlay} onClick={e => e.target===e.currentTarget && setShowNewTask(false)}>
           <div className={styles.modal}>
@@ -519,7 +560,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* NEW PROJECT MODAL */}
       {showNewProject && (
         <div className={styles.modalOverlay} onClick={e => e.target===e.currentTarget && setShowNewProject(false)}>
           <div className={styles.modal}>
